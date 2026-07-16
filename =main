@@ -1,154 +1,219 @@
-document.addEventListener('DOMContentLoaded', () => {
-  const loginCard = document.getElementById('login-card');
-  const registerCard = document.getElementById('register-card');
-  const toRegisterBtn = document.getElementById('to-register');
-  const toLoginBtn = document.getElementById('to-login');
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DietGust — Painel de Planos</title>
   
-  const loginForm = document.getElementById('login-form');
-  const registerForm = document.getElementById('register-form');
+  <!-- SEO Tags -->
+  <meta name="description" content="DietGust - Painel de controle e organização das suas dietas e treinos.">
+  <meta name="theme-color" content="#0f1115">
   
-  const loadingOverlay = document.getElementById('loading');
-  const toast = document.getElementById('toast');
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
 
-  // Lógica do Tema (Claro / Escuro)
-  const themeCheckbox = document.getElementById('theme-checkbox');
-  const savedTheme = localStorage.getItem('theme');
+  <!-- Loading Overlay -->
+  <div id="loading" class="loading-overlay">
+    <div class="spinner"></div>
+    <div id="loading-text" class="loading-text">Gerando seu plano com IA. Isso pode levar alguns segundos...</div>
+  </div>
 
-  if (savedTheme === 'light') {
-    document.body.classList.add('light-theme');
-    if (themeCheckbox) themeCheckbox.checked = true;
-  } else {
-    document.body.classList.remove('light-theme');
-    if (themeCheckbox) themeCheckbox.checked = false;
-  }
+  <!-- Toast Message -->
+  <div id="toast" class="toast">Mensagem de feedback</div>
 
-  if (themeCheckbox) {
-    themeCheckbox.addEventListener('change', () => {
-      if (themeCheckbox.checked) {
-        document.body.classList.add('light-theme');
-        localStorage.setItem('theme', 'light');
-      } else {
-        document.body.classList.remove('light-theme');
-        localStorage.setItem('theme', 'dark');
-      }
-    });
-  }
+  <!-- Header -->
+  <header class="dashboard-header">
+    <div class="header-content">
+      <div class="logo">
+        <h1>Diet<span>Gust</span></h1>
+      </div>
+      <div class="user-nav">
+        <!-- Theme Toggle -->
+        <div class="theme-switch-container">
+          <span class="theme-label-icon">🌙</span>
+          <label class="theme-switch">
+            <input type="checkbox" id="theme-checkbox">
+            <span class="slider round"></span>
+          </label>
+          <span class="theme-label-icon">☀️</span>
+        </div>
+        <span id="user-display" class="user-name">Carregando...</span>
+        <button id="logout-btn" class="btn-logout">Sair</button>
+      </div>
+    </div>
+  </header>
 
-  // Redireciona se já estiver autenticado
-  if (localStorage.getItem('token')) {
-    window.location.href = 'dashboard.html';
-    return;
-  }
-
-  // Alterna entre telas de Login e Registro
-  toRegisterBtn.addEventListener('click', () => {
-    loginCard.style.display = 'none';
-    registerCard.style.display = 'block';
-  });
-
-  toLoginBtn.addEventListener('click', () => {
-    registerCard.style.display = 'none';
-    loginCard.style.display = 'block';
-  });
-
-  // Funções Utilitárias para Feedbacks
-  function showLoading(show, text = 'Carregando...') {
-    if (show) {
-      document.getElementById('loading-text').innerText = text;
-      loadingOverlay.classList.add('active');
-    } else {
-      loadingOverlay.classList.remove('active');
-    }
-  }
-
-  function showToast(message, isError = false) {
-    toast.innerText = message;
-    toast.className = 'toast active';
-    if (isError) {
-      toast.classList.add('toast-error');
-    } else {
-      toast.classList.add('toast-success');
-    }
-    setTimeout(() => {
-      toast.classList.remove('active');
-    }, 3500);
-  }
-
-  // Salvar Token nas duas camadas (localStorage + cookies para o Express)
-  function saveToken(token) {
-    localStorage.setItem('token', token);
-    document.cookie = `token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Strict`;
-  }
-
-  // Enviar Login
-  loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('login-email').value;
-    const senha = document.getElementById('login-senha').value;
-
-    showLoading(true, 'Autenticando...');
-
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, senha })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Falha ao autenticar.');
-      }
-
-      saveToken(data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      showToast('Bem-vindo de volta!');
+  <!-- Main Container -->
+  <main class="dashboard-main">
+    
+    <!-- Sidebar Left (Profile, History, Installation) -->
+    <section class="sidebar-container">
       
-      setTimeout(() => {
-        window.location.href = 'dashboard.html';
-      }, 1000);
-    } catch (err) {
-      showToast(err.message, true);
-    } finally {
-      showLoading(false);
-    }
-  });
+      <!-- PWA Install Banner -->
+      <div id="install-banner" class="install-banner">
+        <div class="install-banner-text">
+          <h4>Instalar o DietGust</h4>
+          <p>Acesse offline e direto na tela inicial.</p>
+        </div>
+        <button id="install-btn" class="install-btn">Instalar</button>
+      </div>
 
-  // Enviar Registro
-  registerForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const nome = document.getElementById('reg-nome').value;
-    const email = document.getElementById('reg-email').value;
-    const idade = document.getElementById('reg-idade').value;
-    const senha = document.getElementById('reg-senha').value;
+      <!-- Action Box -->
+      <div class="action-box">
+        <button id="open-generate-modal-btn" class="btn btn-add-plan">+ Novo Plano com IA</button>
+      </div>
 
-    showLoading(true, 'Registrando conta...');
+      <!-- Profile Card -->
+      <div class="panel-card" style="margin-bottom: 20px;">
+        <h3 class="panel-title">Meu Perfil</h3>
+        <div id="profile-container">
+          <div class="profile-info">
+            <div class="profile-item">
+              <div class="profile-item-label">Idade</div>
+              <div id="profile-age" class="profile-item-value">—</div>
+            </div>
+            <div class="profile-item">
+              <div class="profile-item-label">Email</div>
+              <div id="profile-email" class="profile-item-value">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-    try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome, email, idade, senha })
-      });
+      <!-- History Card -->
+      <div class="panel-card">
+        <h3 class="panel-title">Histórico de Planos</h3>
+        <div id="history-container" class="history-list">
+          <div class="empty-state">
+            <p>Nenhum plano gerado ainda.</p>
+          </div>
+        </div>
+      </div>
 
-      const data = await res.json();
+    </section>
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Falha no cadastro.');
-      }
+    <!-- Content Right (Active Plan Details) -->
+    <section class="content-container">
+      
+      <div id="active-plan-container" class="plan-container" style="display: none;">
+        
+        <!-- Active Plan Banner -->
+        <div class="plan-banner">
+          <div class="plan-banner-info">
+            <span id="plan-badge" class="plan-badge">Objetivo</span>
+            <h2 id="plan-goal-title">Meu Plano de Treinos e Dieta</h2>
+            <p id="plan-date" style="font-size: 0.85rem; color: var(--text-color-muted);">Criado em —</p>
+          </div>
+          <div class="plan-banner-metrics">
+            <div class="metric-badge">
+              <div class="metric-badge-label">Altura</div>
+              <div id="plan-height" class="metric-badge-value">—</div>
+            </div>
+            <div class="metric-badge">
+              <div class="metric-badge-label">Peso</div>
+              <div id="plan-weight" class="metric-badge-value">—</div>
+            </div>
+            <div class="metric-badge">
+              <div class="metric-badge-label">IMC</div>
+              <div id="plan-imc" class="metric-badge-value">—</div>
+            </div>
+          </div>
+        </div>
 
-      saveToken(data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      showToast('Cadastro realizado com sucesso!');
+        <!-- Days of Week Tab Navigation -->
+        <nav class="day-tabs">
+          <button class="day-tab active" data-day="segunda">Segunda</button>
+          <button class="day-tab" data-day="terca">Terça</button>
+          <button class="day-tab" data-day="quarta">Quarta</button>
+          <button class="day-tab" data-day="quinta">Quinta</button>
+          <button class="day-tab" data-day="sexta">Sexta</button>
+        </nav>
 
-      setTimeout(() => {
-        window.location.href = 'dashboard.html';
-      }, 1000);
-    } catch (err) {
-      showToast(err.message, true);
-    } finally {
-      showLoading(false);
-    }
-  });
-});
+        <!-- Active Tab Content Grid -->
+        <div class="plan-tabs-content">
+          
+          <!-- Column 1: Workout Routine -->
+          <div class="workout-column">
+            <h3 class="tab-pane-title">💪 Rotina de <span>Treino</span></h3>
+            <div id="workout-list" class="workout-list">
+              <!-- Exercises go here -->
+            </div>
+          </div>
+
+          <!-- Column 2: Diet Plan -->
+          <div class="diet-column">
+            <h3 class="tab-pane-title">🥗 Plano <span>Alimentar</span></h3>
+            <div id="diet-list" class="diet-list">
+              <!-- Meals go here -->
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- No Plan Empty State -->
+      <div id="no-plan-empty-state" class="empty-state" style="padding-top: 80px;">
+        <p style="font-size: 1.1rem; margin-bottom: 15px;">Você ainda não possui planos de treino/dieta gerados.</p>
+        <p style="color: var(--text-color-muted); font-size: 0.9rem; margin-bottom: 25px;">Clique no botão abaixo para criar um plano personalizado com Inteligência Artificial baseado no seu perfil e metas.</p>
+        <button id="empty-state-add-btn" class="btn" style="max-width: 250px; margin: 0 auto;">Criar Meu Primeiro Plano</button>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Generate Plan Modal -->
+  <div id="generate-modal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2>Adicionar Novo Plano com IA</h2>
+        <button id="close-modal-btn" class="modal-close">&times;</button>
+      </div>
+      
+      <form id="generate-plan-form">
+        <div class="form-group">
+          <label for="form-altura">Altura (cm)</label>
+          <input type="number" id="form-altura" class="form-control" placeholder="Ex: 175" min="50" max="250" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="form-peso">Peso (kg)</label>
+          <input type="number" id="form-peso" class="form-control" placeholder="Ex: 75.5" step="0.1" min="10" max="300" required>
+        </div>
+
+        <div class="form-group">
+          <label>Objetivo</label>
+          <div class="goal-options">
+            <label class="goal-option">
+              <input type="radio" name="form-objetivo" value="ganhar_massa" checked required>
+              <div class="goal-option-card">
+                <span>🔥 Ganhar Massa</span>
+              </div>
+            </label>
+            <label class="goal-option">
+              <input type="radio" name="form-objetivo" value="definicao_muscular" required>
+              <div class="goal-option-card">
+                <span>⚡ Definição</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <button type="submit" class="btn" style="margin-top: 15px;">Gerar Plano</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/dashboard.js"></script>
+  <script src="js/pwa.js"></script>
+</body>
+</html>
