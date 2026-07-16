@@ -1,11 +1,11 @@
-const CACHE_NAME = 'dietgust-cache-v4';
+const CACHE_NAME = 'dietgust-cache-v5';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/dashboard.html',
-  '/css/style.css',
-  '/js/auth.js',
-  '/js/dashboard.js',
+  '/css/style-v4.css',
+  '/js/auth-v4.js',
+  '/js/dashboard-v4.js',
   '/js/pwa.js',
   '/manifest.json',
   '/icon-192.png',
