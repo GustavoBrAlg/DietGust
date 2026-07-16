@@ -225,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const isMassa = currentActivePlan.objetivo === 'ganhar_massa';
     planBadge.innerText = isMassa ? 'Ganhar Massa Muscular' : 'Definição Muscular';
     planBadge.style.backgroundColor = isMassa ? 'var(--primary-color)' : '#00bfff';
-    planBadge.style.color = '#000';
+    planBadge.style.color = 'var(--primary-text-contrast)';
 
     planGoalTitle.innerText = isMassa ? 'Hipertrofia & Força' : 'Definição & Queima';
     
@@ -256,7 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
     
-    planDate.innerHTML = `Criado em ${dateFormatted} <br><span style="display: inline-block; margin-top: 6px; font-size: 0.8rem; padding: 2px 8px; border-radius: 6px; background-color: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: ${planSourceColor}; font-weight: 600;">Fonte: ${planSource}</span>`;
+    planDate.innerHTML = `Criado em ${dateFormatted} <br><span style="display: inline-block; margin-top: 6px; font-size: 0.8rem; padding: 2px 8px; border-radius: 6px; background-color: var(--surface-color-alt); border: 1px solid var(--border-color); color: ${planSourceColor}; font-weight: 600;">Fonte: ${planSource}</span>`;
     
     planHeight.innerText = `${currentActivePlan.altura_cm} cm`;
     planWeight.innerText = `${currentActivePlan.peso_kg} kg`;
