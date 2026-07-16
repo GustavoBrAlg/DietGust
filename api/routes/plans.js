@@ -542,7 +542,7 @@ async function gerarPlanoPorIA(objetivo, peso, altura, imc, classificacao) {
   `;
 
   const { GoogleGenerativeAI } = require('@google/generative-ai');
-  const models = ['gemini-2.5-flash-lite'];
+  const models = ['gemini-3.1-flash-lite', 'gemini-2.0-flash-lite', 'gemini-flash-lite-latest'];
   let lastError = null;
 
   for (const modelName of models) {
