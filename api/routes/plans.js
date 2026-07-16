@@ -522,7 +522,7 @@ async function gerarPlanoPorIA(objetivo, peso, altura, imc, classificacao) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.warn('GEMINI_API_KEY não definida — usando plano fixo.');
-    return null;
+    return { success: false, error: 'GEMINI_API_KEY não configurada no ambiente.' };
   }
 
   const prompt = `
@@ -543,6 +543,7 @@ async function gerarPlanoPorIA(objetivo, peso, altura, imc, classificacao) {
 
   const { GoogleGenerativeAI } = require('@google/generative-ai');
   const models = ['gemini-2.5-flash-lite'];
+  let lastError = null;
 
   for (const modelName of models) {
     try {
@@ -566,17 +567,19 @@ async function gerarPlanoPorIA(objetivo, peso, altura, imc, classificacao) {
         Array.isArray(planData.plano_alimentar) && planData.plano_alimentar.length >= 5
       ) {
         console.log(`✅ Plano gerado com sucesso via IA (${modelName})!`);
-        return { planData, modelUsed: modelName };
+        return { planData, modelUsed: modelName, success: true };
       }
 
       console.warn(`Modelo ${modelName} retornou estrutura inválida. Tentando próximo...`);
+      lastError = new Error('Estrutura de plano gerada pela IA é inválida (faltam treinos ou refeições).');
     } catch (err) {
       console.warn(`Modelo ${modelName} falhou: ${err.message}. Tentando próximo...`);
+      lastError = err;
     }
   }
 
   console.warn('Todos os modelos de IA falharam — usando plano fixo como fallback.');
-  return null;
+  return { success: false, error: lastError ? lastError.message : 'Nenhum modelo de IA pôde ser executado.' };
 }
 
 // 1. Gerar e salvar novo plano
@@ -607,17 +610,19 @@ router.post('/generate', authMiddleware, async (req, res) => {
   let planData = null;
   let modelUsed = null;
   let iaGerado = false;
+  let erroIa = null;
 
   const iaResult = await gerarPlanoPorIA(objetivo, peso, altura, imc, classificacao);
-  if (iaResult) {
+  if (iaResult && iaResult.success) {
     planData = iaResult.planData;
     modelUsed = iaResult.modelUsed;
     iaGerado = true;
   } else {
+    erroIa = iaResult ? iaResult.error : 'Erro ao processar IA';
     // Fallback: plano fixo
     const planoFixo = selecionarPlano(objetivo, imc);
     planData = planoFixo;
-    console.log(`Usando plano fixo: "${planoFixo.nome}"`);
+    console.log(`Usando plano fixo: "${planoFixo.nome}". Motivo de falha da IA: ${erroIa}`);
   }
 
   try {
@@ -693,6 +698,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
       plano_id: planoId,
       ia_gerado: iaGerado,
       modelo_ia: modelUsed,
+      erro_ia: erroIa,
       nome_plano: iaGerado ? `Plano Personalizado (${modelUsed})` : planData.nome,
       descricao_plano: iaGerado ? `Plano criado com inteligência artificial (${modelUsed}), personalizado para seu perfil.` : planData.descricao,
       imc,
