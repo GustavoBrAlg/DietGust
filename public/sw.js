@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dietgust-cache-v7';
+const CACHE_NAME = 'dietgust-cache-v8';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
