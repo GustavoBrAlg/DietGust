@@ -34,6 +34,60 @@ const planSchema = z.object({
   )
 });
 
+// JSON Schema para instrução nativa da API Gemini (structured output)
+const geminiResponseSchema = {
+  type: 'object',
+  properties: {
+    treino_semanal: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          dia_semana: { type: 'string', enum: ['segunda', 'terca', 'quarta', 'quinta', 'sexta'] },
+          exercicios: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                exercicio: { type: 'string' },
+                series: { type: 'integer' },
+                repeticoes: { type: 'string' },
+                observacao: { type: 'string' }
+              },
+              required: ['exercicio', 'series', 'repeticoes']
+            }
+          }
+        },
+        required: ['dia_semana', 'exercicios']
+      }
+    },
+    plano_alimentar: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          dia_semana: { type: 'string', enum: ['segunda', 'terca', 'quarta', 'quinta', 'sexta'] },
+          refeicoes: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                nome_refeicao: { type: 'string' },
+                horario_sugerido: { type: 'string' },
+                alimentos: { type: 'array', items: { type: 'string' } },
+                observacao: { type: 'string' }
+              },
+              required: ['nome_refeicao', 'horario_sugerido', 'alimentos']
+            }
+          }
+        },
+        required: ['dia_semana', 'refeicoes']
+      }
+    }
+  },
+  required: ['treino_semanal', 'plano_alimentar']
+};
+
 // Helper para calcular Classificação do IMC
 function getClassificacaoIMC(imc) {
   if (imc < 18.5) return 'Abaixo do peso';
@@ -66,7 +120,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
   const classificacao = getClassificacaoIMC(imc);
 
   try {
-    // Chamar a IA (Vercel AI SDK com Google Gemini)
+    // Chamar a IA (Google Gemini via SDK oficial @google/generative-ai)
     console.log(`Gerando plano via Gemini para: Objetivo=${objetivo}, IMC=${imc} (${classificacao})`);
     
     const promptText = `
@@ -85,17 +139,25 @@ router.post('/generate', authMiddleware, async (req, res) => {
 
     let planData;
     try {
-      const { generateObject } = await import('ai');
-      const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
-      const google = createGoogleGenerativeAI({
-        apiKey: process.env.GEMINI_API_KEY
+      const { GoogleGenerativeAI } = require('@google/generative-ai');
+      const apiKey = process.env.GEMINI_API_KEY;
+      console.log(`API key status: ${apiKey ? 'present (' + apiKey.substring(0, 8) + '...)' : 'MISSING'}`);
+      
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: geminiResponseSchema
+        }
       });
-      const { object } = await generateObject({
-        model: google('gemini-1.5-flash'),
-        schema: planSchema,
-        prompt: promptText
-      });
-      planData = object;
+      
+      const result = await model.generateContent(promptText);
+      const text = result.response.text();
+      planData = JSON.parse(text);
+      
+      // Validate with Zod
+      planData = planSchema.parse(planData);
     } catch (aiErr) {
       console.error('Erro na chamada da IA (Gemini):', aiErr);
       return res.status(502).json({ error: 'Erro de comunicação com o Google Gemini. Por favor, verifique a chave de API GEMINI_API_KEY no painel da Vercel.' });
