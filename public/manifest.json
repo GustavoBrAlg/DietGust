@@ -1,0 +1,24 @@
+{
+  "name": "DietGust — Planos de Dieta e Treino com IA",
+  "short_name": "DietGust",
+  "description": "Organize seus treinos e plano alimentar personalizado gerado por Inteligência Artificial.",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DietGust — Login / Cadastro</title>
+  
+  <!-- SEO Tags -->
+  <meta name="description" content="DietGust - Organize seus treinos e dieta com ajuda de Inteligência Artificial em um PWA ágil.">
+  <meta name="theme-color" content="#0f1115">
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Loading Overlay -->
+  <div id="loading" class="loading-overlay">
+    <div class="spinner"></div>
+    <div id="loading-text" class="loading-text">Carregando...</div>
+  </div>
+
+  <!-- Toast Message -->
+  <div id="toast" class="toast">Mensagem de feedback</div>
+
+  <div class="auth-container">
+    
+    <!-- Login Card -->
+    <div id="login-card" class="auth-card">
+      <div class="auth-logo">
+        <h1>Diet<span>Gust</span></h1>
+        <p>Acesse sua área de dietas e treinos com IA</p>
+      </div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label for="login-email">E-mail</label>
+          <input type="email" id="login-email" class="form-control" placeholder="Ex: teste@teste.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="login-senha">Senha</label>
+          <input type="password" id="login-senha" class="form-control" placeholder="Sua senha secreta" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn">Entrar</button>
+      </form>
+
+      <div class="auth-switch">
+        Não tem conta? <span id="to-register">Cadastre-se</span>
+      </div>
+    </div>
+
+    <!-- Register Card -->
+    <div id="register-card" class="auth-card" style="display: none;">
+      <div class="auth-logo">
+        <h1>Diet<span>Gust</span></h1>
+        <p>Crie sua conta e comece agora</p>
+      </div>
+
+      <form id="register-form">
+        <div class="form-group">
+          <label for="reg-nome">Nome Completo</label>
+          <input type="text" id="reg-nome" class="form-control" placeholder="Como quer ser chamado?" required autocomplete="name">
+        </div>
+        <div class="form-group">
+          <label for="reg-email">E-mail</label>
+          <input type="email" id="reg-email" class="form-control" placeholder="Seu melhor e-mail" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="reg-idade">Idade</label>
+          <input type="number" id="reg-idade" class="form-control" placeholder="Sua idade" min="1" max="120" required>
+        </div>
+        <div class="form-group">
+          <label for="reg-senha">Senha</label>
+          <input type="password" id="reg-senha" class="form-control" placeholder="Crie uma senha forte" minlength="6" required autocomplete="new-password">
+        </div>
+        <button type="submit" class="btn">Criar Conta</button>
+      </form>
+
+      <div class="auth-switch">
+        Já tem uma conta? <span id="to-login">Fazer Login</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/auth.js"></script>
+  <script src="js/pwa.js"></script>
+</body>
+</html>
