@@ -210,7 +210,29 @@ document.addEventListener('DOMContentLoaded', () => {
       month: 'long',
       year: 'numeric'
     });
-    planDate.innerText = `Plano criado em ${dateFormatted}`;
+    
+    // Detectar fonte do plano (IA ou Predefinido)
+    let planSource = 'Inteligência Artificial (Gemini)';
+    let planSourceColor = 'var(--primary-color)';
+    
+    if (currentActivePlan.treino_semanal) {
+      const mondayWorkout = currentActivePlan.treino_semanal.find(t => t.dia_semana === 'segunda');
+      if (mondayWorkout && mondayWorkout.exercicios) {
+        const exerciseNames = mondayWorkout.exercicios.map(e => e.exercicio).join('|');
+        const predefinedSets = [
+          'Supino Reto com Barra|Supino Inclinado com Halteres|Crucifixo na Polia|Tríceps Testa com Barra|Tríceps Pulley com Corda',
+          'Supino Reto com Halteres|Supino Inclinado na Máquina|Crossover na Polia|Tríceps Pulley com Barra|Mergulho em Paralelas',
+          'Supino Reto com Halteres|Crossover na Polia|Flexão de Braço|Tríceps Pulley|Esteira — Caminhada inclinada',
+          'Caminhada Rápida ou Elíptico|Remada Sentada na Polia (leve)|Puxada no Pulley|Flexão de Braço adaptada (joelhos)'
+        ];
+        if (predefinedSets.includes(exerciseNames)) {
+          planSource = 'Plano Padrão do Sistema (Predefinido)';
+          planSourceColor = '#ffae00';
+        }
+      }
+    }
+    
+    planDate.innerHTML = `Criado em ${dateFormatted} <br><span style="display: inline-block; margin-top: 6px; font-size: 0.8rem; padding: 2px 8px; border-radius: 6px; background-color: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: ${planSourceColor}; font-weight: 600;">Fonte: ${planSource}</span>`;
     
     planHeight.innerText = `${currentActivePlan.altura_cm} cm`;
     planWeight.innerText = `${currentActivePlan.peso_kg} kg`;
