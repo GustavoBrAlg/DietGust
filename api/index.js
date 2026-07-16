@@ -31,6 +31,13 @@ const plansRoutes = require('./routes/plans');
 app.use('/api/auth', authRoutes);
 app.use('/api/plans', plansRoutes);
 
+// Rota temporária de debug para listar chaves das variáveis de ambiente na Vercel
+app.get('/api/debug-env', (req, res) => {
+  res.json({
+    keys: Object.keys(process.env).filter(k => !k.includes('TOKEN') && !k.includes('KEY') && !k.includes('SECRET') && !k.includes('PASS'))
+  });
+});
+
 // Servir arquivos estáticos do frontend (para desenvolvimento local)
 // Nota: Na Vercel, o roteamento do vercel.json mapeia os estáticos da pasta /public automaticamente
 app.use(express.static(path.join(__dirname, '..', 'public')));
