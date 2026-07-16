@@ -787,4 +787,42 @@ router.get('/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// 4. Excluir um plano do histórico
+router.delete('/:id', authMiddleware, async (req, res) => {
+  const planoId = req.params.id;
+
+  try {
+    // Primeiro, verificar se o plano pertence ao usuário autenticado
+    const { data: plan, error: checkError } = await supabase
+      .from('planos')
+      .select('email_usuario')
+      .eq('id', planoId)
+      .single();
+
+    if (checkError || !plan) {
+      return res.status(404).json({ error: 'Plano não encontrado.' });
+    }
+
+    if (plan.email_usuario !== req.user.email) {
+      return res.status(403).json({ error: 'Acesso negado.' });
+    }
+
+    // Excluir plano
+    const { error: deleteError } = await supabase
+      .from('planos')
+      .delete()
+      .eq('id', planoId);
+
+    if (deleteError) {
+      console.error('Erro ao excluir plano:', deleteError);
+      return res.status(500).json({ error: 'Erro ao excluir o plano.' });
+    }
+
+    res.json({ message: 'Plano excluído com sucesso.' });
+  } catch (err) {
+    console.error('Erro ao excluir plano:', err);
+    res.status(500).json({ error: 'Erro ao excluir o plano.' });
+  }
+});
+
 module.exports = router;
