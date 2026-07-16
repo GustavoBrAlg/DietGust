@@ -171,6 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const objetivoTxt = plan.objetivo === 'ganhar_massa' ? 'Massa Muscular' : 'Definição';
 
         item.innerHTML = `
+          <button class="delete-plan-btn" title="Excluir Plano" aria-label="Excluir Plano">🗑️</button>
           <div class="history-item-header">
             <span>${dateFormatted}</span>
             <span>IMC: ${plan.imc}</span>
@@ -186,6 +187,44 @@ document.addEventListener('DOMContentLoaded', () => {
           document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
           item.classList.add('active');
           loadPlanDetails(plan.id);
+        });
+
+        // Configura o evento do botão de exclusão
+        const deleteBtn = item.querySelector('.delete-plan-btn');
+        deleteBtn.addEventListener('click', async (e) => {
+          e.stopPropagation(); // Evita carregar o plano
+          
+          if (!confirm('Deseja realmente excluir este plano do histórico? Esta ação não pode ser desfeita.')) {
+            return;
+          }
+          
+          showLoading(true, 'Excluindo plano...');
+          try {
+            const deleteRes = await fetch(`/api/plans/${plan.id}`, {
+              method: 'DELETE',
+              headers: apiHeaders
+            });
+            
+            if (!deleteRes.ok) {
+              const errData = await deleteRes.json();
+              throw new Error(errData.error || 'Erro ao excluir o plano.');
+            }
+            
+            showToast('Plano excluído com sucesso!');
+            
+            // Se o plano que estava sendo exibido foi excluído, esconde os detalhes
+            if (currentActivePlan && currentActivePlan.id === plan.id) {
+              currentActivePlan = null;
+              activePlanContainer.style.display = 'none';
+              noPlanEmptyState.style.display = 'block';
+            }
+            
+            await loadHistory(currentActivePlan ? false : true);
+          } catch (err) {
+            showToast(err.message, true);
+          } finally {
+            showLoading(false);
+          }
         });
 
         historyContainer.appendChild(item);
