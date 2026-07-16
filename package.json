@@ -10,6 +10,7 @@
     "seed": "node scripts/seed.js"
   },
   "dependencies": {
+    "@ai-sdk/google": "^4.0.17",
     "@ai-sdk/openai": "^0.0.33",
     "@supabase/supabase-js": "^2.110.7",
     "ai": "^3.2.10",

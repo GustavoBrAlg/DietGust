@@ -3,7 +3,7 @@ const router = express.Router();
 const supabase = require('../db');
 const authMiddleware = require('../middleware/auth');
 const { generateObject } = require('ai');
-const { openai } = require('@ai-sdk/openai');
+const { google } = require('@ai-sdk/google');
 const { z } = require('zod');
 
 // Schema de Validação de Geração de Planos via IA (Zod)
@@ -44,7 +44,7 @@ function getClassificacaoIMC(imc) {
   return 'Obesidade';
 }
 
-// 1. Gerar e salvar novo plano (IA + Supabase Inserts)
+// 1. Gerar e salvar novo plano (IA Google Gemini + Supabase Inserts)
 router.post('/generate', authMiddleware, async (req, res) => {
   const { altura_cm, peso_kg, objetivo } = req.body;
 
@@ -68,8 +68,8 @@ router.post('/generate', authMiddleware, async (req, res) => {
   const classificacao = getClassificacaoIMC(imc);
 
   try {
-    // Chamar a IA (Vercel AI SDK)
-    console.log(`Gerando plano via IA para: Objetivo=${objetivo}, IMC=${imc} (${classificacao})`);
+    // Chamar a IA (Vercel AI SDK com Google Gemini)
+    console.log(`Gerando plano via Gemini para: Objetivo=${objetivo}, IMC=${imc} (${classificacao})`);
     
     const promptText = `
       Você é um personal trainer e nutricionista profissional focado em treinos e dietas de alta performance para Android.
@@ -88,14 +88,14 @@ router.post('/generate', authMiddleware, async (req, res) => {
     let planData;
     try {
       const { object } = await generateObject({
-        model: openai('gpt-4o-mini'),
+        model: google('gemini-1.5-flash'),
         schema: planSchema,
         prompt: promptText
       });
       planData = object;
     } catch (aiErr) {
-      console.error('Erro na chamada da IA (OpenAI):', aiErr);
-      return res.status(502).json({ error: 'Erro de comunicação com a Inteligência Artificial. Por favor, verifique a chave de API.' });
+      console.error('Erro na chamada da IA (Gemini):', aiErr);
+      return res.status(502).json({ error: 'Erro de comunicação com o Google Gemini. Por favor, verifique a chave de API GEMINI_API_KEY no painel da Vercel.' });
     }
 
     // Persistência Sequencial no Supabase
