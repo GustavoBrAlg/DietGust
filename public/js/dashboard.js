@@ -341,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.ia_gerado) {
         showToast(`Plano personalizado gerado com sucesso pela Inteligência Artificial (${data.modelo_ia})!`);
       } else {
-        showToast('Aviso: IA indisponível. Usando plano padrão de treino/dieta.', true);
+        showToast(`Aviso: IA falhou (${data.erro_ia || 'Sem detalhes'}). Usando plano padrão.`, true);
       }
       
       // Limpar formulário
