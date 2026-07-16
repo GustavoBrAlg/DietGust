@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
+const supabase = require('../db');
 const authMiddleware = require('../middleware/auth');
 const { generateObject } = require('ai');
 const { openai } = require('@ai-sdk/openai');
@@ -44,7 +44,7 @@ function getClassificacaoIMC(imc) {
   return 'Obesidade';
 }
 
-// 1. Gerar e salvar novo plano (IA + Transação SQL)
+// 1. Gerar e salvar novo plano (IA + Supabase Inserts)
 router.post('/generate', authMiddleware, async (req, res) => {
   const { altura_cm, peso_kg, objetivo } = req.body;
 
@@ -63,12 +63,12 @@ router.post('/generate', authMiddleware, async (req, res) => {
     return res.status(400).json({ error: 'Objetivo inválido. Use "ganhar_massa" ou "definicao_muscular".' });
   }
 
-  // 1. Calcular IMC
+  // Calcular IMC
   const imc = parseFloat((peso / ((altura / 100) ** 2)).toFixed(2));
   const classificacao = getClassificacaoIMC(imc);
 
   try {
-    // 2. Chamar a IA (Vercel AI SDK)
+    // Chamar a IA (Vercel AI SDK)
     console.log(`Gerando plano via IA para: Objetivo=${objetivo}, IMC=${imc} (${classificacao})`);
     
     const promptText = `
@@ -85,7 +85,6 @@ router.post('/generate', authMiddleware, async (req, res) => {
       3. Forneça alimentos fáceis e práticos, divididos em arrays de itens (ex: ["2 bananas", "30g aveia", "1 scoop whey"]).
     `;
 
-    // Chamando o modelo de forma resiliente
     let planData;
     try {
       const { object } = await generateObject({
@@ -99,70 +98,103 @@ router.post('/generate', authMiddleware, async (req, res) => {
       return res.status(502).json({ error: 'Erro de comunicação com a Inteligência Artificial. Por favor, verifique a chave de API.' });
     }
 
-    // 3. Persistência Transacional no Banco
-    const pgClient = await db.pool.connect();
-    try {
-      await pgClient.query('BEGIN');
-
-      // Inserir cabeçalho do plano
-      const planRes = await pgClient.query(
-        `INSERT INTO planos (email_usuario, objetivo, altura_cm, peso_kg, imc, classificacao_imc) 
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-        [req.user.email, objetivo, altura, peso, imc, classificacao]
-      );
-      const planoId = planRes.rows[0].id;
-
-      // Inserir treinos
-      for (const tDia of planData.treino_semanal) {
-        const tDiaRes = await pgClient.query(
-          `INSERT INTO treino_dias (plano_id, dia_semana) VALUES ($1, $2) RETURNING id`,
-          [planoId, tDia.dia_semana]
-        );
-        const tDiaId = tDiaRes.rows[0].id;
-
-        for (let i = 0; i < tDia.exercicios.length; i++) {
-          const ex = tDia.exercicios[i];
-          await pgClient.query(
-            `INSERT INTO treino_sessoes (treino_dia_id, exercicio, series, repeticoes, observacao, ordem) 
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [tDiaId, ex.exercicio, ex.series, ex.repeticoes, ex.observacao || '', i + 1]
-          );
-        }
-      }
-
-      // Inserir plano alimentar
-      for (const aDia of planData.plano_alimentar) {
-        const aDiaRes = await pgClient.query(
-          `INSERT INTO plano_alimentar_dias (plano_id, dia_semana) VALUES ($1, $2) RETURNING id`,
-          [planoId, aDia.dia_semana]
-        );
-        const aDiaId = aDiaRes.rows[0].id;
-
-        for (let i = 0; i < aDia.refeicoes.length; i++) {
-          const refItem = aDia.refeicoes[i];
-          await pgClient.query(
-            `INSERT INTO refeicoes (plano_alimentar_dia_id, nome_refeicao, horario_sugerido, alimentos, observacao, ordem) 
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [aDiaId, refItem.nome_refeicao, refItem.horario_sugerido, refItem.alimentos, refItem.observacao || '', i + 1]
-          );
-        }
-      }
-
-      await pgClient.query('COMMIT');
-      
-      res.status(201).json({
-        message: 'Plano gerado e salvo com sucesso!',
-        plano_id: planoId,
+    // Persistência Sequencial no Supabase
+    // 1. Inserir cabeçalho do plano
+    const { data: plan, error: planError } = await supabase
+      .from('planos')
+      .insert({
+        email_usuario: req.user.email,
+        objetivo,
+        altura_cm: altura,
+        peso_kg: peso,
         imc,
         classificacao_imc: classificacao
-      });
-    } catch (dbErr) {
-      await pgClient.query('ROLLBACK');
-      console.error('Erro na transação de banco de dados:', dbErr);
-      res.status(500).json({ error: 'Erro ao persistir o plano no banco de dados.' });
-    } finally {
-      pgClient.release();
+      })
+      .select('id')
+      .single();
+
+    if (planError) {
+      console.error('Erro ao salvar cabeçalho do plano:', planError);
+      return res.status(500).json({ error: 'Erro ao criar o plano no banco de dados.' });
     }
+
+    const planoId = plan.id;
+
+    // 2. Inserir treinos
+    for (const tDia of planData.treino_semanal) {
+      const { data: day, error: dayError } = await supabase
+        .from('treino_dias')
+        .insert({
+          plano_id: planoId,
+          dia_semana: tDia.dia_semana
+        })
+        .select('id')
+        .single();
+
+      if (dayError) {
+        console.error('Erro ao salvar dia de treino:', dayError);
+        continue;
+      }
+
+      const sessionsToInsert = tDia.exercicios.map((ex, index) => ({
+        treino_dia_id: day.id,
+        exercicio: ex.exercicio,
+        series: ex.series,
+        repeticoes: ex.repeticoes,
+        observacao: ex.observacao || '',
+        ordem: index + 1
+      }));
+
+      const { error: sessError } = await supabase
+        .from('treino_sessoes')
+        .insert(sessionsToInsert);
+
+      if (sessError) {
+        console.error('Erro ao salvar sessões de treino:', sessError);
+      }
+    }
+
+    // 3. Inserir plano alimentar
+    for (const aDia of planData.plano_alimentar) {
+      const { data: day, error: dayError } = await supabase
+        .from('plano_alimentar_dias')
+        .insert({
+          plano_id: planoId,
+          dia_semana: aDia.dia_semana
+        })
+        .select('id')
+        .single();
+
+      if (dayError) {
+        console.error('Erro ao salvar dia do plano alimentar:', dayError);
+        continue;
+      }
+
+      const mealsToInsert = aDia.refeicoes.map((meal, index) => ({
+        plano_alimentar_dia_id: day.id,
+        nome_refeicao: meal.nome_refeicao,
+        horario_sugerido: meal.horario_sugerido,
+        alimentos: meal.alimentos,
+        observacao: meal.observacao || '',
+        ordem: index + 1
+      }));
+
+      const { error: mealError } = await supabase
+        .from('refeicoes')
+        .insert(mealsToInsert);
+
+      if (mealError) {
+        console.error('Erro ao salvar refeições:', mealError);
+      }
+    }
+
+    res.status(201).json({
+      message: 'Plano gerado e salvo com sucesso!',
+      plano_id: planoId,
+      imc,
+      classificacao_imc: classificacao
+    });
+
   } catch (err) {
     console.error('Erro geral ao processar plano:', err);
     res.status(500).json({ error: 'Erro ao gerar o plano de treino/dieta.' });
@@ -172,119 +204,71 @@ router.post('/generate', authMiddleware, async (req, res) => {
 // 2. Listar histórico de planos do usuário
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const plansRes = await db.query(
-      `SELECT id, objetivo, altura_cm, peso_kg, imc, classificacao_imc, criado_em 
-       FROM planos WHERE email_usuario = $1 ORDER BY criado_em DESC`,
-      [req.user.email]
-    );
-    res.json(plansRes.rows);
+    const { data: plans, error } = await supabase
+      .from('planos')
+      .select('id, objetivo, altura_cm, peso_kg, imc, classificacao_imc, criado_em')
+      .eq('email_usuario', req.user.email)
+      .order('criado_em', { ascending: false });
+
+    if (error) {
+      console.error('Erro ao buscar histórico de planos:', error);
+      return res.status(500).json({ error: 'Erro ao carregar histórico.' });
+    }
+
+    res.json(plans);
   } catch (err) {
     console.error('Erro ao buscar histórico:', err);
     res.status(500).json({ error: 'Erro ao carregar histórico.' });
   }
 });
 
-// 3. Obter detalhes estruturados de um plano específico (com JOINs)
+// 3. Obter detalhes estruturados de um plano específico (com relacionamentos aninhados)
 router.get('/:id', authMiddleware, async (req, res) => {
   const planoId = req.params.id;
 
   try {
-    // Buscar cabeçalho do plano
-    const planRes = await db.query(
-      `SELECT id, email_usuario, objetivo, altura_cm, peso_kg, imc, classificacao_imc, criado_em 
-       FROM planos WHERE id = $1`,
-      [planoId]
-    );
+    const { data: plan, error } = await supabase
+      .from('planos')
+      .select(`
+        id, email_usuario, objetivo, altura_cm, peso_kg, imc, classificacao_imc, criado_em,
+        treino_dias (
+          dia_semana,
+          treino_sessoes ( exercicio, series, repeticoes, observacao, ordem )
+        ),
+        plano_alimentar_dias (
+          dia_semana,
+          refeicoes ( nome_refeicao, horario_sugerido, alimentos, observacao, ordem )
+        )
+      `)
+      .eq('id', planoId)
+      .single();
 
-    if (planRes.rows.length === 0) {
+    if (error || !plan) {
+      console.error('Erro ao buscar detalhes do plano:', error);
       return res.status(404).json({ error: 'Plano não encontrado.' });
     }
 
-    const plano = planRes.rows[0];
-
     // Verificar se pertence ao usuário
-    if (plano.email_usuario !== req.user.email) {
+    if (plan.email_usuario !== req.user.email) {
       return res.status(403).json({ error: 'Acesso negado. Este plano pertence a outro usuário.' });
     }
 
-    // Buscar treinos (dias + sessões)
-    const treinosRes = await db.query(
-      `SELECT td.dia_semana, ts.exercicio, ts.series, ts.repeticoes, ts.observacao, ts.ordem
-       FROM treino_dias td
-       JOIN treino_sessoes ts ON ts.treino_dia_id = td.id
-       WHERE td.plano_id = $1
-       ORDER BY 
-         CASE td.dia_semana 
-           WHEN 'segunda' THEN 1 
-           WHEN 'terca' THEN 2 
-           WHEN 'quarta' THEN 3 
-           WHEN 'quinta' THEN 4 
-           WHEN 'sexta' THEN 5 
-         END, ts.ordem`,
-      [planoId]
-    );
-
-    // Buscar plano alimentar (dias + refeições)
-    const refeicoesRes = await db.query(
-      `SELECT pad.dia_semana, r.nome_refeicao, r.horario_sugerido, r.alimentos, r.observacao, r.ordem
-       FROM plano_alimentar_dias pad
-       JOIN refeicoes r ON r.plano_alimentar_dia_id = pad.id
-       WHERE pad.plano_id = $1
-       ORDER BY 
-         CASE pad.dia_semana 
-           WHEN 'segunda' THEN 1 
-           WHEN 'terca' THEN 2 
-           WHEN 'quarta' THEN 3 
-           WHEN 'quinta' THEN 4 
-           WHEN 'sexta' THEN 5 
-         END, r.ordem`,
-      [planoId]
-    );
-
-    // Agrupar treinos por dia da semana no formato esperado
-    const treinosMap = {};
-    treinosRes.rows.forEach(row => {
-      if (!treinosMap[row.dia_semana]) {
-        treinosMap[row.dia_semana] = [];
-      }
-      treinosMap[row.dia_semana].push({
-        exercicio: row.exercicio,
-        series: row.series,
-        repeticoes: row.repeticoes,
-        observacao: row.observacao
-      });
-    });
-
-    // Agrupar refeições por dia da semana
-    const refeicoesMap = {};
-    refeicoesRes.rows.forEach(row => {
-      if (!refeicoesMap[row.dia_semana]) {
-        refeicoesMap[row.dia_semana] = [];
-      }
-      refeicoesMap[row.dia_semana].push({
-        nome_refeicao: row.nome_refeicao,
-        horario_sugerido: row.horario_sugerido,
-        alimentos: row.alimentos,
-        observacao: row.observacao
-      });
-    });
-
-    // Construir o objeto aninhado completo
+    // Reordenar e estruturar o retorno exatamente como o frontend necessita
     const result = {
-      id: plano.id,
-      objetivo: plano.objetivo,
-      altura_cm: plano.altura_cm,
-      peso_kg: plano.peso_kg,
-      imc: plano.imc,
-      classificacao_imc: plano.classificacao_imc,
-      criado_em: plano.criado_em,
-      treino_semanal: Object.keys(treinosMap).map(dia => ({
-        dia_semana: dia,
-        exercicios: treinosMap[dia]
+      id: plan.id,
+      objetivo: plan.objetivo,
+      altura_cm: plan.altura_cm,
+      peso_kg: plan.peso_kg,
+      imc: plan.imc,
+      classificacao_imc: plan.classificacao_imc,
+      criado_em: plan.criado_em,
+      treino_semanal: (plan.treino_dias || []).map(td => ({
+        dia_semana: td.dia_semana,
+        exercicios: (td.treino_sessoes || []).sort((a, b) => a.ordem - b.ordem)
       })),
-      plano_alimentar: Object.keys(refeicoesMap).map(dia => ({
-        dia_semana: dia,
-        refeicoes: refeicoesMap[dia]
+      plano_alimentar: (plan.plano_alimentar_dias || []).map(pad => ({
+        dia_semana: pad.dia_semana,
+        refeicoes: (pad.refeicoes || []).sort((a, b) => a.ordem - b.ordem)
       }))
     };
 

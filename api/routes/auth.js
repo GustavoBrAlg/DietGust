@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const db = require('../db');
+const supabase = require('../db');
 const authMiddleware = require('../middleware/auth');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dietgust_fallback_secret_key';
@@ -16,9 +16,21 @@ router.post('/register', async (req, res) => {
   }
 
   try {
+    const formattedEmail = email.toLowerCase().trim();
+
     // Verificar se usuário já existe
-    const userCheck = await db.query('SELECT email FROM usuarios WHERE email = $1', [email.toLowerCase().trim()]);
-    if (userCheck.rows.length > 0) {
+    const { data: existingUser, error: checkError } = await supabase
+      .from('usuarios')
+      .select('email')
+      .eq('email', formattedEmail)
+      .maybeSingle();
+
+    if (checkError) {
+      console.error('Erro ao verificar usuário existente:', checkError);
+      return res.status(500).json({ error: 'Erro ao conectar ao banco de dados.' });
+    }
+
+    if (existingUser) {
       return res.status(400).json({ error: 'Este e-mail já está cadastrado.' });
     }
 
@@ -27,18 +39,27 @@ router.post('/register', async (req, res) => {
     const senhaHash = await bcrypt.hash(senha, salt);
 
     // Inserir no banco
-    await db.query(
-      'INSERT INTO usuarios (email, nome, idade, senha_hash) VALUES ($1, $2, $3, $4)',
-      [email.toLowerCase().trim(), nome.trim(), parseInt(idade), senhaHash]
-    );
+    const { error: insertError } = await supabase
+      .from('usuarios')
+      .insert({
+        email: formattedEmail,
+        nome: nome.trim(),
+        idade: parseInt(idade),
+        senha_hash: senhaHash
+      });
+
+    if (insertError) {
+      console.error('Erro ao inserir usuário:', insertError);
+      return res.status(500).json({ error: 'Erro ao cadastrar usuário no banco de dados.' });
+    }
 
     // Gerar JWT
-    const token = jwt.sign({ email: email.toLowerCase().trim() }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ email: formattedEmail }, JWT_SECRET, { expiresIn: '7d' });
 
     res.status(201).json({
       message: 'Usuário registrado com sucesso!',
       token,
-      user: { email: email.toLowerCase().trim(), nome: nome.trim() }
+      user: { email: formattedEmail, nome: nome.trim() }
     });
   } catch (err) {
     console.error('Erro no registro:', err);
@@ -55,14 +76,18 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const userRes = await db.query('SELECT email, nome, senha_hash FROM usuarios WHERE email = $1', [email.toLowerCase().trim()]);
-    
-    if (userRes.rows.length === 0) {
+    const formattedEmail = email.toLowerCase().trim();
+
+    const { data: user, error: fetchError } = await supabase
+      .from('usuarios')
+      .select('email, nome, senha_hash')
+      .eq('email', formattedEmail)
+      .maybeSingle();
+
+    if (fetchError || !user) {
       return res.status(400).json({ error: 'E-mail ou senha incorretos.' });
     }
 
-    const user = userRes.rows[0];
-    
     // Validar senha
     const isMatch = await bcrypt.compare(senha, user.senha_hash);
     if (!isMatch) {
@@ -86,11 +111,17 @@ router.post('/login', async (req, res) => {
 // 3. Obter perfil do usuário logado
 router.get('/me', authMiddleware, async (req, res) => {
   try {
-    const userRes = await db.query('SELECT email, nome, idade, criado_em FROM usuarios WHERE email = $1', [req.user.email]);
-    if (userRes.rows.length === 0) {
+    const { data: user, error } = await supabase
+      .from('usuarios')
+      .select('email, nome, idade, criado_em')
+      .eq('email', req.user.email)
+      .maybeSingle();
+
+    if (error || !user) {
       return res.status(404).json({ error: 'Usuário não encontrado.' });
     }
-    res.json(userRes.rows[0]);
+
+    res.json(user);
   } catch (err) {
     console.error('Erro ao buscar perfil:', err);
     res.status(500).json({ error: 'Erro ao buscar dados do perfil.' });

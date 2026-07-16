@@ -1,20 +1,17 @@
-const { Pool } = require('pg');
+const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
-const connectionString = process.env.DATABASE_URL;
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!connectionString) {
-  console.warn('⚠️ Warning: DATABASE_URL is not set. Database connections will fail.');
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.warn('⚠️ Warning: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not set. Supabase client will not initialize correctly.');
 }
 
-const pool = new Pool({
-  connectionString,
-  ssl: {
-    rejectUnauthorized: false
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    persistSession: false
   }
 });
 
-module.exports = {
-  query: (text, params) => pool.query(text, params),
-  pool
-};
+module.exports = supabase;

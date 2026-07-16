@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^0.0.33",
+    "@supabase/supabase-js": "^2.110.7",
     "ai": "^3.2.10",
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.5",
