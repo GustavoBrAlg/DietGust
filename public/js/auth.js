@@ -10,6 +10,30 @@ document.addEventListener('DOMContentLoaded', () => {
   const loadingOverlay = document.getElementById('loading');
   const toast = document.getElementById('toast');
 
+  // Lógica do Tema (Claro / Escuro)
+  const themeCheckbox = document.getElementById('theme-checkbox');
+  const savedTheme = localStorage.getItem('theme');
+
+  if (savedTheme === 'light') {
+    document.body.classList.add('light-theme');
+    if (themeCheckbox) themeCheckbox.checked = true;
+  } else {
+    document.body.classList.remove('light-theme');
+    if (themeCheckbox) themeCheckbox.checked = false;
+  }
+
+  if (themeCheckbox) {
+    themeCheckbox.addEventListener('change', () => {
+      if (themeCheckbox.checked) {
+        document.body.classList.add('light-theme');
+        localStorage.setItem('theme', 'light');
+      } else {
+        document.body.classList.remove('light-theme');
+        localStorage.setItem('theme', 'dark');
+      }
+    });
+  }
+
   // Redireciona se já estiver autenticado
   if (localStorage.getItem('token')) {
     window.location.href = 'dashboard.html';
