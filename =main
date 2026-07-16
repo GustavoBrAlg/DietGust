@@ -1,107 +1,154 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DietGust — Login / Cadastro</title>
+document.addEventListener('DOMContentLoaded', () => {
+  const loginCard = document.getElementById('login-card');
+  const registerCard = document.getElementById('register-card');
+  const toRegisterBtn = document.getElementById('to-register');
+  const toLoginBtn = document.getElementById('to-login');
   
-  <!-- SEO Tags -->
-  <meta name="description" content="DietGust - Organize seus treinos e dieta com ajuda de Inteligência Artificial em um PWA ágil.">
-  <meta name="theme-color" content="#0f1115">
+  const loginForm = document.getElementById('login-form');
+  const registerForm = document.getElementById('register-form');
   
-  <!-- PWA Manifest -->
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-  <link rel="apple-touch-icon" href="icon-192.png">
-  
-  <!-- Stylesheets -->
-  <link rel="stylesheet" href="css/style.css">
-</head>
-<body>
+  const loadingOverlay = document.getElementById('loading');
+  const toast = document.getElementById('toast');
 
-  <!-- Theme Toggle -->
-  <div class="auth-theme-toggle">
-    <div class="theme-switch-container">
-      <span class="theme-label-icon">🌙</span>
-      <label class="theme-switch">
-        <input type="checkbox" id="theme-checkbox">
-        <span class="slider round"></span>
-      </label>
-      <span class="theme-label-icon">☀️</span>
-    </div>
-  </div>
+  // Lógica do Tema (Claro / Escuro)
+  const themeCheckbox = document.getElementById('theme-checkbox');
+  const savedTheme = localStorage.getItem('theme');
 
-  <!-- Loading Overlay -->
-  <div id="loading" class="loading-overlay">
-    <div class="spinner"></div>
-    <div id="loading-text" class="loading-text">Carregando...</div>
-  </div>
+  if (savedTheme === 'light') {
+    document.body.classList.add('light-theme');
+    if (themeCheckbox) themeCheckbox.checked = true;
+  } else {
+    document.body.classList.remove('light-theme');
+    if (themeCheckbox) themeCheckbox.checked = false;
+  }
 
-  <!-- Toast Message -->
-  <div id="toast" class="toast">Mensagem de feedback</div>
+  if (themeCheckbox) {
+    themeCheckbox.addEventListener('change', () => {
+      if (themeCheckbox.checked) {
+        document.body.classList.add('light-theme');
+        localStorage.setItem('theme', 'light');
+      } else {
+        document.body.classList.remove('light-theme');
+        localStorage.setItem('theme', 'dark');
+      }
+    });
+  }
 
-  <div class="auth-container">
-    
-    <!-- Login Card -->
-    <div id="login-card" class="auth-card">
-      <div class="auth-logo">
-        <h1>Diet<span>Gust</span></h1>
-        <p>Acesse sua área de dietas e treinos com IA</p>
-      </div>
+  // Redireciona se já estiver autenticado
+  if (localStorage.getItem('token')) {
+    window.location.href = 'dashboard.html';
+    return;
+  }
 
-      <form id="login-form">
-        <div class="form-group">
-          <label for="login-email">E-mail</label>
-          <input type="email" id="login-email" class="form-control" placeholder="Ex: teste@teste.com" required autocomplete="email">
-        </div>
-        <div class="form-group">
-          <label for="login-senha">Senha</label>
-          <input type="password" id="login-senha" class="form-control" placeholder="Sua senha secreta" required autocomplete="current-password">
-        </div>
-        <button type="submit" class="btn">Entrar</button>
-      </form>
+  // Alterna entre telas de Login e Registro
+  toRegisterBtn.addEventListener('click', () => {
+    loginCard.style.display = 'none';
+    registerCard.style.display = 'block';
+  });
 
-      <div class="auth-switch">
-        Não tem conta? <span id="to-register">Cadastre-se</span>
-      </div>
-    </div>
+  toLoginBtn.addEventListener('click', () => {
+    registerCard.style.display = 'none';
+    loginCard.style.display = 'block';
+  });
 
-    <!-- Register Card -->
-    <div id="register-card" class="auth-card" style="display: none;">
-      <div class="auth-logo">
-        <h1>Diet<span>Gust</span></h1>
-        <p>Crie sua conta e comece agora</p>
-      </div>
+  // Funções Utilitárias para Feedbacks
+  function showLoading(show, text = 'Carregando...') {
+    if (show) {
+      document.getElementById('loading-text').innerText = text;
+      loadingOverlay.classList.add('active');
+    } else {
+      loadingOverlay.classList.remove('active');
+    }
+  }
 
-      <form id="register-form">
-        <div class="form-group">
-          <label for="reg-nome">Nome Completo</label>
-          <input type="text" id="reg-nome" class="form-control" placeholder="Como quer ser chamado?" required autocomplete="name">
-        </div>
-        <div class="form-group">
-          <label for="reg-email">E-mail</label>
-          <input type="email" id="reg-email" class="form-control" placeholder="Seu melhor e-mail" required autocomplete="email">
-        </div>
-        <div class="form-group">
-          <label for="reg-idade">Idade</label>
-          <input type="number" id="reg-idade" class="form-control" placeholder="Sua idade" min="1" max="120" required>
-        </div>
-        <div class="form-group">
-          <label for="reg-senha">Senha</label>
-          <input type="password" id="reg-senha" class="form-control" placeholder="Crie uma senha forte" minlength="6" required autocomplete="new-password">
-        </div>
-        <button type="submit" class="btn">Criar Conta</button>
-      </form>
+  function showToast(message, isError = false) {
+    toast.innerText = message;
+    toast.className = 'toast active';
+    if (isError) {
+      toast.classList.add('toast-error');
+    } else {
+      toast.classList.add('toast-success');
+    }
+    setTimeout(() => {
+      toast.classList.remove('active');
+    }, 3500);
+  }
 
-      <div class="auth-switch">
-        Já tem uma conta? <span id="to-login">Fazer Login</span>
-      </div>
-    </div>
+  // Salvar Token nas duas camadas (localStorage + cookies para o Express)
+  function saveToken(token) {
+    localStorage.setItem('token', token);
+    document.cookie = `token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Strict`;
+  }
 
-  </div>
+  // Enviar Login
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('login-email').value;
+    const senha = document.getElementById('login-senha').value;
 
-  <!-- Scripts -->
-  <script src="js/auth.js"></script>
-  <script src="js/pwa.js"></script>
-</body>
-</html>
+    showLoading(true, 'Autenticando...');
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, senha })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Falha ao autenticar.');
+      }
+
+      saveToken(data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      showToast('Bem-vindo de volta!');
+      
+      setTimeout(() => {
+        window.location.href = 'dashboard.html';
+      }, 1000);
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      showLoading(false);
+    }
+  });
+
+  // Enviar Registro
+  registerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nome = document.getElementById('reg-nome').value;
+    const email = document.getElementById('reg-email').value;
+    const idade = document.getElementById('reg-idade').value;
+    const senha = document.getElementById('reg-senha').value;
+
+    showLoading(true, 'Registrando conta...');
+
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome, email, idade, senha })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Falha no cadastro.');
+      }
+
+      saveToken(data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      showToast('Cadastro realizado com sucesso!');
+
+      setTimeout(() => {
+        window.location.href = 'dashboard.html';
+      }, 1000);
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      showLoading(false);
+    }
+  });
+});
