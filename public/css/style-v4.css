@@ -349,8 +349,33 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 12px;
+  padding-right: 32px;
   cursor: pointer;
+  position: relative;
   transition: all var(--transition-fast);
+}
+
+.delete-plan-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  z-index: 5;
+  padding: 2px;
+}
+
+.delete-plan-btn:hover {
+  opacity: 1;
+  transform: scale(1.2);
+}
+
+.delete-plan-btn:active {
+  transform: scale(0.9);
 }
 
 .history-item:hover {
