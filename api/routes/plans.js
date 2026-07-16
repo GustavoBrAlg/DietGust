@@ -3,7 +3,6 @@ const router = express.Router();
 const supabase = require('../db');
 const authMiddleware = require('../middleware/auth');
 const { generateObject } = require('ai');
-const { google } = require('@ai-sdk/google');
 const { z } = require('zod');
 
 // Schema de Validação de Geração de Planos via IA (Zod)
@@ -87,6 +86,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
 
     let planData;
     try {
+      const { google } = await import('@ai-sdk/google');
       const { object } = await generateObject({
         model: google('gemini-1.5-flash'),
         schema: planSchema,
