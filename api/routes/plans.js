@@ -86,7 +86,10 @@ router.post('/generate', authMiddleware, async (req, res) => {
     let planData;
     try {
       const { generateObject } = await import('ai');
-      const { google } = await import('@ai-sdk/google');
+      const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
+      const google = createGoogleGenerativeAI({
+        apiKey: process.env.GEMINI_API_KEY
+      });
       const { object } = await generateObject({
         model: google('gemini-1.5-flash'),
         schema: planSchema,
