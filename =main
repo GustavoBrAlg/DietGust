@@ -1,219 +1,387 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DietGust — Painel de Planos</title>
+document.addEventListener('DOMContentLoaded', () => {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    window.location.href = 'index.html';
+    return;
+  }
+
+  // Lógica do Tema (Claro / Escuro)
+  const themeCheckbox = document.getElementById('theme-checkbox');
+  const savedTheme = localStorage.getItem('theme');
+
+  if (savedTheme === 'light') {
+    document.body.classList.add('light-theme');
+    if (themeCheckbox) themeCheckbox.checked = true;
+  } else {
+    document.body.classList.remove('light-theme');
+    if (themeCheckbox) themeCheckbox.checked = false;
+  }
+
+  if (themeCheckbox) {
+    themeCheckbox.addEventListener('change', () => {
+      if (themeCheckbox.checked) {
+        document.body.classList.add('light-theme');
+        localStorage.setItem('theme', 'light');
+      } else {
+        document.body.classList.remove('light-theme');
+        localStorage.setItem('theme', 'dark');
+      }
+    });
+  }
+
+  // Elementos do DOM
+  const userDisplay = document.getElementById('user-display');
+  const logoutBtn = document.getElementById('logout-btn');
   
-  <!-- SEO Tags -->
-  <meta name="description" content="DietGust - Painel de controle e organização das suas dietas e treinos.">
-  <meta name="theme-color" content="#0f1115">
+  const profileAge = document.getElementById('profile-age');
+  const profileEmail = document.getElementById('profile-email');
   
-  <!-- PWA Manifest -->
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-  <link rel="apple-touch-icon" href="icon-192.png">
+  const historyContainer = document.getElementById('history-container');
   
-  <!-- Stylesheets -->
-  <link rel="stylesheet" href="css/style.css">
-</head>
-<body>
+  const openModalBtn = document.getElementById('open-generate-modal-btn');
+  const emptyStateAddBtn = document.getElementById('empty-state-add-btn');
+  const closeModalBtn = document.getElementById('close-modal-btn');
+  const generateModal = document.getElementById('generate-modal');
+  const generatePlanForm = document.getElementById('generate-plan-form');
+  
+  const activePlanContainer = document.getElementById('active-plan-container');
+  const noPlanEmptyState = document.getElementById('no-plan-empty-state');
+  
+  const planBadge = document.getElementById('plan-badge');
+  const planGoalTitle = document.getElementById('plan-goal-title');
+  const planDate = document.getElementById('plan-date');
+  const planHeight = document.getElementById('plan-height');
+  const planWeight = document.getElementById('plan-weight');
+  const planImc = document.getElementById('plan-imc');
+  
+  const dayTabs = document.querySelectorAll('.day-tab');
+  const workoutList = document.getElementById('workout-list');
+  const dietList = document.getElementById('diet-list');
+  
+  const loadingOverlay = document.getElementById('loading');
+  const toast = document.getElementById('toast');
 
-  <!-- Loading Overlay -->
-  <div id="loading" class="loading-overlay">
-    <div class="spinner"></div>
-    <div id="loading-text" class="loading-text">Gerando seu plano com IA. Isso pode levar alguns segundos...</div>
-  </div>
+  let currentActivePlan = null;
+  let activeTabDay = 'segunda';
 
-  <!-- Toast Message -->
-  <div id="toast" class="toast">Mensagem de feedback</div>
+  // Configuração global de Headers de Requisição
+  const apiHeaders = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  };
 
-  <!-- Header -->
-  <header class="dashboard-header">
-    <div class="header-content">
-      <div class="logo">
-        <h1>Diet<span>Gust</span></h1>
-      </div>
-      <div class="user-nav">
-        <!-- Theme Toggle -->
-        <div class="theme-switch-container">
-          <span class="theme-label-icon">🌙</span>
-          <label class="theme-switch">
-            <input type="checkbox" id="theme-checkbox">
-            <span class="slider round"></span>
-          </label>
-          <span class="theme-label-icon">☀️</span>
-        </div>
-        <span id="user-display" class="user-name">Carregando...</span>
-        <button id="logout-btn" class="btn-logout">Sair</button>
-      </div>
-    </div>
-  </header>
+  // Funções Utilitárias
+  function showLoading(show, text = 'Carregando...') {
+    if (show) {
+      document.getElementById('loading-text').innerText = text;
+      loadingOverlay.classList.add('active');
+    } else {
+      loadingOverlay.classList.remove('active');
+    }
+  }
 
-  <!-- Main Container -->
-  <main class="dashboard-main">
-    
-    <!-- Sidebar Left (Profile, History, Installation) -->
-    <section class="sidebar-container">
-      
-      <!-- PWA Install Banner -->
-      <div id="install-banner" class="install-banner">
-        <div class="install-banner-text">
-          <h4>Instalar o DietGust</h4>
-          <p>Acesse offline e direto na tela inicial.</p>
-        </div>
-        <button id="install-btn" class="install-btn">Instalar</button>
-      </div>
+  function showToast(message, isError = false) {
+    toast.innerText = message;
+    toast.className = 'toast active';
+    if (isError) {
+      toast.classList.add('toast-error');
+    } else {
+      toast.classList.add('toast-success');
+    }
+    setTimeout(() => {
+      toast.classList.remove('active');
+    }, 3500);
+  }
 
-      <!-- Action Box -->
-      <div class="action-box">
-        <button id="open-generate-modal-btn" class="btn btn-add-plan">+ Novo Plano com IA</button>
-      </div>
+  // Logout
+  logoutBtn.addEventListener('click', () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    // Limpar cookie
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    window.location.href = 'index.html';
+  });
 
-      <!-- Profile Card -->
-      <div class="panel-card" style="margin-bottom: 20px;">
-        <h3 class="panel-title">Meu Perfil</h3>
-        <div id="profile-container">
-          <div class="profile-info">
-            <div class="profile-item">
-              <div class="profile-item-label">Idade</div>
-              <div id="profile-age" class="profile-item-value">—</div>
-            </div>
-            <div class="profile-item">
-              <div class="profile-item-label">Email</div>
-              <div id="profile-email" class="profile-item-value">—</div>
-            </div>
-          </div>
-        </div>
-      </div>
+  // Modal de Novo Plano
+  function toggleModal(open) {
+    if (open) {
+      generateModal.classList.add('active');
+    } else {
+      generateModal.classList.remove('active');
+    }
+  }
 
-      <!-- History Card -->
-      <div class="panel-card">
-        <h3 class="panel-title">Histórico de Planos</h3>
-        <div id="history-container" class="history-list">
+  openModalBtn.addEventListener('click', () => toggleModal(true));
+  if (emptyStateAddBtn) {
+    emptyStateAddBtn.addEventListener('click', () => toggleModal(true));
+  }
+  closeModalBtn.addEventListener('click', () => toggleModal(false));
+
+  // Carrega informações básicas de perfil do usuário
+  async function loadProfile() {
+    try {
+      const res = await fetch('/api/auth/me', { headers: apiHeaders });
+      if (!res.ok) throw new Error('Não foi possível obter dados do perfil.');
+      const data = await res.json();
+      userDisplay.innerText = data.nome;
+      profileAge.innerText = `${data.idade} anos`;
+      profileEmail.innerText = data.email;
+    } catch (err) {
+      console.error(err);
+      const userCached = JSON.parse(localStorage.getItem('user'));
+      if (userCached) userDisplay.innerText = userCached.nome;
+    }
+  }
+
+  // Carrega lista histórica de planos do usuário
+  async function loadHistory(selectLatest = false) {
+    try {
+      const res = await fetch('/api/plans', { headers: apiHeaders });
+      if (!res.ok) throw new Error('Não foi possível obter o histórico.');
+      const data = await res.json();
+
+      if (data.length === 0) {
+        historyContainer.innerHTML = `
           <div class="empty-state">
             <p>Nenhum plano gerado ainda.</p>
           </div>
-        </div>
-      </div>
+        `;
+        noPlanEmptyState.style.display = 'block';
+        activePlanContainer.style.display = 'none';
+        return;
+      }
 
-    </section>
+      noPlanEmptyState.style.display = 'none';
+      activePlanContainer.style.display = 'flex';
 
-    <!-- Content Right (Active Plan Details) -->
-    <section class="content-container">
+      historyContainer.innerHTML = '';
+      data.forEach((plan, index) => {
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        if (currentActivePlan && plan.id === currentActivePlan.id) {
+          item.classList.add('active');
+        }
+
+        const dateFormatted = new Date(plan.criado_em).toLocaleDateString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: '2-digit'
+        });
+
+        const objetivoTxt = plan.objetivo === 'ganhar_massa' ? 'Massa Muscular' : 'Definição';
+
+        item.innerHTML = `
+          <div class="history-item-header">
+            <span>${dateFormatted}</span>
+            <span>IMC: ${plan.imc}</span>
+          </div>
+          <div class="history-item-goal">🎯 ${objetivoTxt}</div>
+          <div class="history-item-metrics">
+            <span>${plan.altura_cm}cm</span>
+            <span>${plan.peso_kg}kg</span>
+          </div>
+        `;
+
+        item.addEventListener('click', () => {
+          document.querySelectorAll('.history-item').forEach(el => el.classList.remove('active'));
+          item.classList.add('active');
+          loadPlanDetails(plan.id);
+        });
+
+        historyContainer.appendChild(item);
+      });
+
+      // Selecionar o mais recente se solicitado
+      if (selectLatest && data.length > 0) {
+        loadPlanDetails(data[0].id);
+      }
+    } catch (err) {
+      showToast('Erro ao carregar o histórico de planos.', true);
+    }
+  }
+
+  // Carrega e exibe detalhes de um plano específico
+  async function loadPlanDetails(planId) {
+    showLoading(true, 'Carregando detalhes do plano...');
+    try {
+      const res = await fetch(`/api/plans/${planId}`, { headers: apiHeaders });
+      if (!res.ok) throw new Error('Não foi possível obter dados do plano.');
+      const plan = await res.json();
       
-      <div id="active-plan-container" class="plan-container" style="display: none;">
+      currentActivePlan = plan;
+      renderPlanHeader();
+      renderPlanDay(activeTabDay);
+    } catch (err) {
+      showToast('Erro ao carregar dados do plano selecionado.', true);
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  // Renderiza cabeçalho do plano selecionado
+  function renderPlanHeader() {
+    if (!currentActivePlan) return;
+
+    const isMassa = currentActivePlan.objetivo === 'ganhar_massa';
+    planBadge.innerText = isMassa ? 'Ganhar Massa Muscular' : 'Definição Muscular';
+    planBadge.style.backgroundColor = isMassa ? 'var(--primary-color)' : '#00bfff';
+    planBadge.style.color = '#000';
+
+    planGoalTitle.innerText = isMassa ? 'Hipertrofia & Força' : 'Definição & Queima';
+    
+    const dateFormatted = new Date(currentActivePlan.criado_em).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    });
+    
+    // Detectar fonte do plano (IA ou Predefinido)
+    let planSource = 'Inteligência Artificial (Gemini)';
+    let planSourceColor = 'var(--primary-color)';
+    
+    if (currentActivePlan.treino_semanal) {
+      const mondayWorkout = currentActivePlan.treino_semanal.find(t => t.dia_semana === 'segunda');
+      if (mondayWorkout && mondayWorkout.exercicios) {
+        const exerciseNames = mondayWorkout.exercicios.map(e => e.exercicio).join('|');
+        const predefinedSets = [
+          'Supino Reto com Barra|Supino Inclinado com Halteres|Crucifixo na Polia|Tríceps Testa com Barra|Tríceps Pulley com Corda',
+          'Supino Reto com Halteres|Supino Inclinado na Máquina|Crossover na Polia|Tríceps Pulley com Barra|Mergulho em Paralelas',
+          'Supino Reto com Halteres|Crossover na Polia|Flexão de Braço|Tríceps Pulley|Esteira — Caminhada inclinada',
+          'Caminhada Rápida ou Elíptico|Remada Sentada na Polia (leve)|Puxada no Pulley|Flexão de Braço adaptada (joelhos)'
+        ];
+        if (predefinedSets.includes(exerciseNames)) {
+          planSource = 'Plano Padrão do Sistema (Predefinido)';
+          planSourceColor = '#ffae00';
+        }
+      }
+    }
+    
+    planDate.innerHTML = `Criado em ${dateFormatted} <br><span style="display: inline-block; margin-top: 6px; font-size: 0.8rem; padding: 2px 8px; border-radius: 6px; background-color: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: ${planSourceColor}; font-weight: 600;">Fonte: ${planSource}</span>`;
+    
+    planHeight.innerText = `${currentActivePlan.altura_cm} cm`;
+    planWeight.innerText = `${currentActivePlan.peso_kg} kg`;
+    planImc.innerText = `${currentActivePlan.imc} (${currentActivePlan.classificacao_imc})`;
+  }
+
+  // Renderiza treinos e dietas para o dia selecionado
+  function renderPlanDay(day) {
+    if (!currentActivePlan) return;
+
+    // 1. Limpar listas
+    workoutList.innerHTML = '';
+    dietList.innerHTML = '';
+
+    // 2. Filtrar dados do dia
+    const treinoDia = currentActivePlan.treino_semanal.find(t => t.dia_semana === day);
+    const dietaDia = currentActivePlan.plano_alimentar.find(d => d.dia_semana === day);
+
+    // 3. Renderizar Treinos
+    if (treinoDia && treinoDia.exercicios && treinoDia.exercicios.length > 0) {
+      treinoDia.exercicios.forEach(ex => {
+        const item = document.createElement('div');
+        item.className = 'workout-item';
+        item.innerHTML = `
+          <div class="workout-item-header">
+            <span class="workout-item-name">${ex.exercicio}</span>
+            <span class="workout-item-sets">${ex.series} séries</span>
+          </div>
+          <div class="workout-item-reps">Repetições: ${ex.repeticoes}</div>
+          ${ex.observacao ? `<div class="workout-item-obs">${ex.observacao}</div>` : ''}
+        `;
+        workoutList.appendChild(item);
+      });
+    } else {
+      workoutList.innerHTML = `
+        <div class="empty-state">
+          <p>Sem treinos programados para hoje.</p>
+        </div>
+      `;
+    }
+
+    // 4. Renderizar Refeições
+    if (dietaDia && dietaDia.refeicoes && dietaDia.refeicoes.length > 0) {
+      dietaDia.refeicoes.forEach(meal => {
+        const item = document.createElement('div');
+        item.className = 'diet-item';
         
-        <!-- Active Plan Banner -->
-        <div class="plan-banner">
-          <div class="plan-banner-info">
-            <span id="plan-badge" class="plan-badge">Objetivo</span>
-            <h2 id="plan-goal-title">Meu Plano de Treinos e Dieta</h2>
-            <p id="plan-date" style="font-size: 0.85rem; color: var(--text-color-muted);">Criado em —</p>
+        const alimentosHtml = meal.alimentos
+          .map(alimento => `<li>${alimento}</li>`)
+          .join('');
+
+        item.innerHTML = `
+          <div class="diet-item-header">
+            <span class="diet-item-name">${meal.nome_refeicao}</span>
+            <span class="diet-item-time">⏰ ${meal.horario_sugerido}</span>
           </div>
-          <div class="plan-banner-metrics">
-            <div class="metric-badge">
-              <div class="metric-badge-label">Altura</div>
-              <div id="plan-height" class="metric-badge-value">—</div>
-            </div>
-            <div class="metric-badge">
-              <div class="metric-badge-label">Peso</div>
-              <div id="plan-weight" class="metric-badge-value">—</div>
-            </div>
-            <div class="metric-badge">
-              <div class="metric-badge-label">IMC</div>
-              <div id="plan-imc" class="metric-badge-value">—</div>
-            </div>
-          </div>
+          <ul class="diet-item-food-list">
+            ${alimentosHtml}
+          </ul>
+          ${meal.observacao ? `<div class="diet-item-obs">${meal.observacao}</div>` : ''}
+        `;
+        dietList.appendChild(item);
+      });
+    } else {
+      dietList.innerHTML = `
+        <div class="empty-state">
+          <p>Sem refeições programadas para hoje.</p>
         </div>
+      `;
+    }
+  }
 
-        <!-- Days of Week Tab Navigation -->
-        <nav class="day-tabs">
-          <button class="day-tab active" data-day="segunda">Segunda</button>
-          <button class="day-tab" data-day="terca">Terça</button>
-          <button class="day-tab" data-day="quarta">Quarta</button>
-          <button class="day-tab" data-day="quinta">Quinta</button>
-          <button class="day-tab" data-day="sexta">Sexta</button>
-        </nav>
+  // Ouvir clicks nos botões de tabs dos dias da semana
+  dayTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      dayTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      activeTabDay = tab.getAttribute('data-day');
+      renderPlanDay(activeTabDay);
+    });
+  });
 
-        <!-- Active Tab Content Grid -->
-        <div class="plan-tabs-content">
-          
-          <!-- Column 1: Workout Routine -->
-          <div class="workout-column">
-            <h3 class="tab-pane-title">💪 Rotina de <span>Treino</span></h3>
-            <div id="workout-list" class="workout-list">
-              <!-- Exercises go here -->
-            </div>
-          </div>
+  // Criar Novo Plano
+  generatePlanForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const altura_cm = document.getElementById('form-altura').value;
+    const peso_kg = document.getElementById('form-peso').value;
+    const objetivo = document.querySelector('input[name="form-objetivo"]:checked').value;
 
-          <!-- Column 2: Diet Plan -->
-          <div class="diet-column">
-            <h3 class="tab-pane-title">🥗 Plano <span>Alimentar</span></h3>
-            <div id="diet-list" class="diet-list">
-              <!-- Meals go here -->
-            </div>
-          </div>
+    toggleModal(false);
+    showLoading(true, 'A Inteligência Artificial está montando seus treinos e dieta com base nas suas metas. Isso pode levar de 15 a 30 segundos...');
 
-        </div>
+    try {
+      const res = await fetch('/api/plans/generate', {
+        method: 'POST',
+        headers: apiHeaders,
+        body: JSON.stringify({ altura_cm, peso_kg, objetivo })
+      });
 
-      </div>
+      const data = await res.json();
 
-      <!-- No Plan Empty State -->
-      <div id="no-plan-empty-state" class="empty-state" style="padding-top: 80px;">
-        <p style="font-size: 1.1rem; margin-bottom: 15px;">Você ainda não possui planos de treino/dieta gerados.</p>
-        <p style="color: var(--text-color-muted); font-size: 0.9rem; margin-bottom: 25px;">Clique no botão abaixo para criar um plano personalizado com Inteligência Artificial baseado no seu perfil e metas.</p>
-        <button id="empty-state-add-btn" class="btn" style="max-width: 250px; margin: 0 auto;">Criar Meu Primeiro Plano</button>
-      </div>
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao gerar o plano.');
+      }
 
-    </section>
-
-  </main>
-
-  <!-- Generate Plan Modal -->
-  <div id="generate-modal" class="modal-overlay">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h2>Adicionar Novo Plano com IA</h2>
-        <button id="close-modal-btn" class="modal-close">&times;</button>
-      </div>
+      if (data.ia_gerado) {
+        showToast(`Plano personalizado gerado com sucesso pela Inteligência Artificial (${data.modelo_ia})!`);
+      } else {
+        showToast(`Aviso: IA falhou (${data.erro_ia || 'Sem detalhes'}). Usando plano padrão.`, true);
+      }
       
-      <form id="generate-plan-form">
-        <div class="form-group">
-          <label for="form-altura">Altura (cm)</label>
-          <input type="number" id="form-altura" class="form-control" placeholder="Ex: 175" min="50" max="250" required>
-        </div>
-        
-        <div class="form-group">
-          <label for="form-peso">Peso (kg)</label>
-          <input type="number" id="form-peso" class="form-control" placeholder="Ex: 75.5" step="0.1" min="10" max="300" required>
-        </div>
+      // Limpar formulário
+      generatePlanForm.reset();
+      
+      // Recarregar histórico e selecionar o plano que acabou de ser criado
+      await loadHistory(false);
+      await loadPlanDetails(data.plano_id);
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      showLoading(false);
+    }
+  });
 
-        <div class="form-group">
-          <label>Objetivo</label>
-          <div class="goal-options">
-            <label class="goal-option">
-              <input type="radio" name="form-objetivo" value="ganhar_massa" checked required>
-              <div class="goal-option-card">
-                <span>🔥 Ganhar Massa</span>
-              </div>
-            </label>
-            <label class="goal-option">
-              <input type="radio" name="form-objetivo" value="definicao_muscular" required>
-              <div class="goal-option-card">
-                <span>⚡ Definição</span>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        <button type="submit" class="btn" style="margin-top: 15px;">Gerar Plano</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Scripts -->
-  <script src="js/dashboard.js"></script>
-  <script src="js/pwa.js"></script>
-</body>
-</html>
+  // Inicializar Página
+  loadProfile();
+  loadHistory(true);
+});
