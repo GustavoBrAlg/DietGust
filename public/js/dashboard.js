@@ -316,7 +316,11 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error(data.error || 'Erro ao gerar o plano.');
       }
 
-      showToast('Seu novo plano personalizado foi gerado com sucesso!');
+      if (data.ia_gerado) {
+        showToast(`Plano personalizado gerado com sucesso pela Inteligência Artificial (${data.modelo_ia})!`);
+      } else {
+        showToast('Aviso: IA indisponível. Usando plano padrão de treino/dieta.', true);
+      }
       
       // Limpar formulário
       generatePlanForm.reset();
