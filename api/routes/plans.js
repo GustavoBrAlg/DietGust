@@ -462,8 +462,122 @@ function getClassificacaoIMC(imc) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ROTAS
+// JSON SCHEMA PARA SAÍDA ESTRUTURADA DO GEMINI
 // ─────────────────────────────────────────────────────────────────────────────
+const geminiResponseSchema = {
+  type: 'object',
+  properties: {
+    treino_semanal: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          dia_semana: { type: 'string', enum: ['segunda', 'terca', 'quarta', 'quinta', 'sexta'] },
+          exercicios: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                exercicio: { type: 'string' },
+                series: { type: 'integer' },
+                repeticoes: { type: 'string' },
+                observacao: { type: 'string' }
+              },
+              required: ['exercicio', 'series', 'repeticoes']
+            }
+          }
+        },
+        required: ['dia_semana', 'exercicios']
+      }
+    },
+    plano_alimentar: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          dia_semana: { type: 'string', enum: ['segunda', 'terca', 'quarta', 'quinta', 'sexta'] },
+          refeicoes: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                nome_refeicao: { type: 'string' },
+                horario_sugerido: { type: 'string' },
+                alimentos: { type: 'array', items: { type: 'string' } },
+                observacao: { type: 'string' }
+              },
+              required: ['nome_refeicao', 'horario_sugerido', 'alimentos']
+            }
+          }
+        },
+        required: ['dia_semana', 'refeicoes']
+      }
+    }
+  },
+  required: ['treino_semanal', 'plano_alimentar']
+};
+
+// Tenta gerar plano via Gemini 2.5 (flash → flash-lite → fallback fixo)
+async function gerarPlanoPorIA(objetivo, peso, altura, imc, classificacao) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn('GEMINI_API_KEY não definida — usando plano fixo.');
+    return null;
+  }
+
+  const prompt = `
+    Você é um personal trainer e nutricionista profissional.
+    Crie um plano completo e personalizado de treinos e dieta de segunda a sexta-feira para:
+    - Objetivo: ${objetivo === 'ganhar_massa' ? 'Ganhar Massa Muscular (Hipertrofia)' : 'Definição Muscular (Perda de Gordura)'}
+    - Peso: ${peso} kg
+    - Altura: ${altura} cm
+    - IMC: ${imc} (${classificacao})
+
+    Regras:
+    1. Treinos de segunda a sexta com exercícios coerentes com o objetivo (força/volume).
+    2. Plano alimentar de segunda a sexta com refeições práticas e detalhadas.
+    3. Para ganho de massa: superávit calórico, mais proteínas e carboidratos.
+    4. Para definição: déficit calórico controlado, alto teor proteico.
+    5. Alimentos listados como itens individuais (ex: ["150g de frango grelhado", "4 colheres de arroz"]).
+  `;
+
+  const { GoogleGenerativeAI } = require('@google/generative-ai');
+  const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+
+  for (const modelName of models) {
+    try {
+      console.log(`Tentando IA com modelo: ${modelName}...`);
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({
+        model: modelName,
+        generationConfig: {
+          responseMimeType: 'application/json',
+          responseSchema: geminiResponseSchema
+        }
+      });
+
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+      const planData = JSON.parse(text);
+
+      // Validação básica da estrutura
+      if (
+        Array.isArray(planData.treino_semanal) && planData.treino_semanal.length >= 5 &&
+        Array.isArray(planData.plano_alimentar) && planData.plano_alimentar.length >= 5
+      ) {
+        console.log(`✅ Plano gerado com sucesso via IA (${modelName})!`);
+        return { planData, modelUsed: modelName };
+      }
+
+      console.warn(`Modelo ${modelName} retornou estrutura inválida. Tentando próximo...`);
+    } catch (err) {
+      console.warn(`Modelo ${modelName} falhou: ${err.message}. Tentando próximo...`);
+    }
+  }
+
+  console.warn('Todos os modelos de IA falharam — usando plano fixo como fallback.');
+  return null;
+}
 
 // 1. Gerar e salvar novo plano
 router.post('/generate', authMiddleware, async (req, res) => {
@@ -486,9 +600,25 @@ router.post('/generate', authMiddleware, async (req, res) => {
 
   const imc = parseFloat((peso / ((altura / 100) ** 2)).toFixed(2));
   const classificacao = getClassificacaoIMC(imc);
-  const planoSelecionado = selecionarPlano(objetivo, imc);
 
-  console.log(`Selecionando plano: objetivo=${objetivo}, IMC=${imc} (${classificacao}) → "${planoSelecionado.nome}"`);
+  console.log(`Nova solicitação de plano: objetivo=${objetivo}, IMC=${imc} (${classificacao})`);
+
+  // Tenta IA primeiro
+  let planData = null;
+  let modelUsed = null;
+  let iaGerado = false;
+
+  const iaResult = await gerarPlanoPorIA(objetivo, peso, altura, imc, classificacao);
+  if (iaResult) {
+    planData = iaResult.planData;
+    modelUsed = iaResult.modelUsed;
+    iaGerado = true;
+  } else {
+    // Fallback: plano fixo
+    const planoFixo = selecionarPlano(objetivo, imc);
+    planData = planoFixo;
+    console.log(`Usando plano fixo: "${planoFixo.nome}"`);
+  }
 
   try {
     // Inserir cabeçalho do plano
@@ -513,7 +643,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
     const planoId = plan.id;
 
     // Inserir treinos
-    for (const tDia of planoSelecionado.treino_semanal) {
+    for (const tDia of planData.treino_semanal) {
       const { data: day, error: dayError } = await supabase
         .from('treino_dias')
         .insert({ plano_id: planoId, dia_semana: tDia.dia_semana })
@@ -536,7 +666,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
     }
 
     // Inserir plano alimentar
-    for (const aDia of planoSelecionado.plano_alimentar) {
+    for (const aDia of planData.plano_alimentar) {
       const { data: day, error: dayError } = await supabase
         .from('plano_alimentar_dias')
         .insert({ plano_id: planoId, dia_semana: aDia.dia_semana })
@@ -561,8 +691,10 @@ router.post('/generate', authMiddleware, async (req, res) => {
     res.status(201).json({
       message: 'Plano gerado e salvo com sucesso!',
       plano_id: planoId,
-      nome_plano: planoSelecionado.nome,
-      descricao_plano: planoSelecionado.descricao,
+      ia_gerado: iaGerado,
+      modelo_ia: modelUsed,
+      nome_plano: iaGerado ? `Plano Personalizado (${modelUsed})` : planData.nome,
+      descricao_plano: iaGerado ? `Plano criado com inteligência artificial (${modelUsed}), personalizado para seu perfil.` : planData.descricao,
       imc,
       classificacao_imc: classificacao
     });
@@ -572,6 +704,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Erro ao gerar o plano.' });
   }
 });
+
 
 // 2. Listar histórico de planos do usuário
 router.get('/', authMiddleware, async (req, res) => {
