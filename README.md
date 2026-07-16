@@ -9,7 +9,7 @@ O projeto foi construído utilizando Node.js vanilla com Express no backend, Sup
 ## 🚀 Tecnologias e Infraestrutura
 *   **Backend:** Node.js vanilla, Express (para rotas da API)
 *   **Database:** Supabase (Postgres) — Único banco de dados do sistema, modelado relacionalmente para suportar dados dinâmicos.
-*   **IA Generativa:** Vercel AI SDK (OpenAI gpt-4o-mini).
+*   **IA Generativa:** Vercel AI SDK (Google Gemini gemini-1.5-flash).
 *   **Frontend:** HTML5, CSS3 vanilla (Material Design HSL), Javascript Moderno (Vanilla).
 *   **PWA:** `manifest.json` com ícones, `sw.js` com cache offline básico (shell do app) e aviso customizado de instalação.
 *   **Hospedagem & Deploy:** GitHub e Vercel Serverless Functions.
@@ -71,9 +71,10 @@ O servidor estará rodando em [http://localhost:3000](http://localhost:3000).
 O projeto está configurado para deploy automático na Vercel com suporte completo para as rotas do backend em Serverless Functions (`/api/*`) e arquivos estáticos do frontend.
 
 Para que tudo funcione corretamente em produção, certifique-se de configurar as seguintes **Environment Variables** no dashboard do seu projeto na Vercel:
-1.  `DATABASE_URL` (Sua string de conexão do Supabase)
-2.  `JWT_SECRET` (A chave secreta de criptografia JWT)
-3.  `OPENAI_API_KEY` (Chave de acesso à API da OpenAI)
+1.  `SUPABASE_URL` (URL da API REST do Supabase)
+2.  `SUPABASE_SERVICE_ROLE_KEY` (Chave Service Role do Supabase)
+3.  `JWT_SECRET` (A chave secreta de criptografia JWT)
+4.  `GEMINI_API_KEY` (Chave de acesso à API do Google Gemini)
 
 ---
 
