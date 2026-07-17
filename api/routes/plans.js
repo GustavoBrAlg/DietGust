@@ -825,4 +825,67 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// 5. Editar o peso de um plano do histórico (recalcula IMC)
+router.put('/:id', authMiddleware, async (req, res) => {
+  const planoId = req.params.id;
+  const { peso_kg } = req.body;
+
+  if (!peso_kg) {
+    return res.status(400).json({ error: 'O peso é obrigatório.' });
+  }
+
+  const peso = parseFloat(peso_kg);
+  if (isNaN(peso) || peso <= 0) {
+    return res.status(400).json({ error: 'O peso deve ser um valor numérico válido maior que zero.' });
+  }
+
+  try {
+    // 1. Verificar se o plano pertence ao usuário autenticado e buscar a altura
+    const { data: plan, error: fetchError } = await supabase
+      .from('planos')
+      .select('email_usuario, altura_cm')
+      .eq('id', planoId)
+      .single();
+
+    if (fetchError || !plan) {
+      return res.status(404).json({ error: 'Plano não encontrado.' });
+    }
+
+    if (plan.email_usuario !== req.user.email) {
+      return res.status(403).json({ error: 'Acesso negado.' });
+    }
+
+    const altura = parseFloat(plan.altura_cm);
+    
+    // 2. Recalcular IMC e Classificação
+    const imc = parseFloat((peso / ((altura / 100) ** 2)).toFixed(2));
+    const classificacao = getClassificacaoIMC(imc);
+
+    // 3. Atualizar o plano no banco
+    const { data: updatedPlan, error: updateError } = await supabase
+      .from('planos')
+      .update({
+        peso_kg: peso,
+        imc,
+        classificacao_imc: classificacao
+      })
+      .eq('id', planoId)
+      .select('id, objetivo, altura_cm, peso_kg, imc, classificacao_imc, criado_em')
+      .single();
+
+    if (updateError) {
+      console.error('Erro ao atualizar plano:', updateError);
+      return res.status(500).json({ error: 'Erro ao atualizar o plano no banco de dados.' });
+    }
+
+    res.json({
+      message: 'Peso atualizado e IMC recalculado com sucesso!',
+      plan: updatedPlan
+    });
+  } catch (err) {
+    console.error('Erro ao atualizar peso do plano:', err);
+    res.status(500).json({ error: 'Erro ao atualizar o plano.' });
+  }
+});
+
 module.exports = router;

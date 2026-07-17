@@ -355,9 +355,8 @@ h1, h2, h3, h4, h5, h6 {
   transition: all var(--transition-fast);
 }
 
-.delete-plan-btn {
+.delete-plan-btn, .edit-plan-btn {
   position: absolute;
-  top: 12px;
   right: 12px;
   background: transparent;
   border: none;
@@ -369,12 +368,20 @@ h1, h2, h3, h4, h5, h6 {
   padding: 2px;
 }
 
-.delete-plan-btn:hover {
+.delete-plan-btn {
+  top: 12px;
+}
+
+.edit-plan-btn {
+  top: 36px;
+}
+
+.delete-plan-btn:hover, .edit-plan-btn:hover {
   opacity: 1;
   transform: scale(1.2);
 }
 
-.delete-plan-btn:active {
+.delete-plan-btn:active, .edit-plan-btn:active {
   transform: scale(0.9);
 }
 

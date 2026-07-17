@@ -44,6 +44,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const generateModal = document.getElementById('generate-modal');
   const generatePlanForm = document.getElementById('generate-plan-form');
   
+  // Elementos do Modal de Edição de Peso
+  const editWeightModal = document.getElementById('edit-weight-modal');
+  const editWeightForm = document.getElementById('edit-weight-form');
+  const closeEditModalBtn = document.getElementById('close-edit-modal-btn');
+  const editPlanIdInput = document.getElementById('edit-plan-id');
+  const editFormPesoInput = document.getElementById('edit-form-peso');
+  
   const activePlanContainer = document.getElementById('active-plan-container');
   const noPlanEmptyState = document.getElementById('no-plan-empty-state');
   
@@ -117,6 +124,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   closeModalBtn.addEventListener('click', () => toggleModal(false));
 
+  if (closeEditModalBtn) {
+    closeEditModalBtn.addEventListener('click', () => {
+      editWeightModal.classList.remove('active');
+    });
+  }
+
   // Função auxiliar para obter apenas o primeiro nome
   function getFirstName(fullName) {
     if (!fullName) return 'Usuário';
@@ -189,6 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         item.innerHTML = `
           <button class="delete-plan-btn" title="Excluir Plano" aria-label="Excluir Plano">🗑️</button>
+          <button class="edit-plan-btn" title="Editar Peso" aria-label="Editar Peso">✏️</button>
           <div class="history-item-header">
             <span>${dateFormatted}</span>
             <span>IMC: ${plan.imc}</span>
@@ -244,6 +258,15 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         });
 
+        // Configura o evento do botão de edição
+        const editBtn = item.querySelector('.edit-plan-btn');
+        editBtn.addEventListener('click', (e) => {
+          e.stopPropagation(); // Evita carregar o plano
+          editPlanIdInput.value = plan.id;
+          editFormPesoInput.value = plan.peso_kg;
+          editWeightModal.classList.add('active');
+        });
+ 
         historyContainer.appendChild(item);
       });
 
@@ -430,6 +453,44 @@ document.addEventListener('DOMContentLoaded', () => {
       // Recarregar histórico e selecionar o plano que acabou de ser criado
       await loadHistory(false);
       await loadPlanDetails(data.plano_id);
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      showLoading(false);
+    }
+  });
+
+  // Editar Peso do Plano
+  editWeightForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const planId = editPlanIdInput.value;
+    const peso_kg = editFormPesoInput.value;
+
+    editWeightModal.classList.remove('active');
+    showLoading(true, 'Atualizando peso e recalculando IMC...');
+
+    try {
+      const res = await fetch(`/api/plans/${planId}`, {
+        method: 'PUT',
+        headers: apiHeaders,
+        body: JSON.stringify({ peso_kg })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao atualizar o peso.');
+      }
+
+      showToast('Peso atualizado com sucesso!');
+      
+      // Se o plano que foi editado estiver sendo exibido, recarrega seus detalhes
+      if (currentActivePlan && currentActivePlan.id === planId) {
+        await loadPlanDetails(planId);
+      }
+      
+      // Recarregar histórico
+      await loadHistory(false);
     } catch (err) {
       showToast(err.message, true);
     } finally {
