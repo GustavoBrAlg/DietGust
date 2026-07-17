@@ -14,3 +14,4 @@ yarn-error.log*
 Prompt_Claude.txt
 Prompt_Inicial_Configuracoes.txt
 
+.env*

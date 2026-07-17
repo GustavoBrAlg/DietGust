@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const logoutBtn = document.getElementById('logout-btn');
   
   const profileAge = document.getElementById('profile-age');
-  const profileEmail = document.getElementById('profile-email');
+  const profileNome = document.getElementById('profile-nome');
   
   const historyContainer = document.getElementById('history-container');
   
@@ -117,19 +117,36 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   closeModalBtn.addEventListener('click', () => toggleModal(false));
 
+  // Função auxiliar para obter apenas o primeiro nome
+  function getFirstName(fullName) {
+    if (!fullName) return 'Usuário';
+    const cleanName = fullName.trim();
+    if (cleanName.includes('@')) {
+      const part = cleanName.split('@')[0];
+      return part.charAt(0).toUpperCase() + part.slice(1);
+    }
+    const firstWord = cleanName.split(/\s+/)[0];
+    return firstWord.charAt(0).toUpperCase() + firstWord.slice(1);
+  }
+
   // Carrega informações básicas de perfil do usuário
   async function loadProfile() {
     try {
       const res = await fetch('/api/auth/me', { headers: apiHeaders });
       if (!res.ok) throw new Error('Não foi possível obter dados do perfil.');
       const data = await res.json();
-      userDisplay.innerText = data.nome;
+      const firstName = getFirstName(data.nome);
+      userDisplay.innerText = firstName;
       profileAge.innerText = `${data.idade} anos`;
-      profileEmail.innerText = data.email;
+      if (profileNome) profileNome.innerText = firstName;
     } catch (err) {
       console.error(err);
       const userCached = JSON.parse(localStorage.getItem('user'));
-      if (userCached) userDisplay.innerText = userCached.nome;
+      if (userCached) {
+        const firstName = getFirstName(userCached.nome);
+        userDisplay.innerText = firstName;
+        if (profileNome) profileNome.innerText = firstName;
+      }
     }
   }
 
